@@ -1,110 +1,90 @@
-var http = require('http');
-var mysql = require('mysql2');
+const express = require('express');
+const mysql = require('mysql2');
 
-var kapcsolat = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "",
-    database: "feladat2"
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const connection = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: '',
+    database: 'feladat2'
 });
 
-kapcsolat.connect(function(err) {
-    if (err) throw err;
-    console.log("Kapcsolódva az adatbázishoz!");
+connection.connect(err => {
+    if (err) {
+        console.error(err);
+        return;
+    }
+    console.log('Kapcsolódva az adatbázishoz!');
 });
 
-
-http.createServer(function(req, res) {
-
-    if (req.url == "/dolgozo" && req.method == "GET") {
-
-        kapcsolat.query("SELECT * FROM dolgozok", function(err, result) {
-            if (err) throw err;
-
-            res.writeHead(200, {'Content-Type': 'application/json'});
-            res.write(JSON.stringify(result));
-            res.end();
+/* ===== QUERY PROMISE – PONT MINT A KÖNYVBEN ===== */
+function queryPromise(query, value) {
+    return new Promise((resolve, reject) => {
+        connection.query(query, value, (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
         });
+    });
+}
+
+/* ===== GET ===== */
+app.get('/dolgozo', async (req, res) => {
+    try {
+        const query = "SELECT * FROM dolgozok";
+        const result = await queryPromise(query);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Some issue occurred" });
     }
+});
 
-    if (req.url == "/dolgozo" && req.method == "POST") {
-
-        var body = "";
-
-        req.on("data", function(chunk) {
-            body += chunk.toString();
-        });
-
-        req.on("end", function() {
-
-            body = body.replaceAll("+", " ");
-            var tomb = body.split("&");
-
-            var nev = tomb[0].split("=")[1];
-            var magassag = tomb[1].split("=")[1];
-            var suly = tomb[2].split("=")[1];
-
-            var sql = "INSERT INTO dolgozok (nev, magassag, suly) VALUES ('" +
-                      nev + "'," + magassag + "," + suly + ")";
-
-            kapcsolat.query(sql, function(err, result) {
-                if (err) throw err;
-            });
-
-            res.writeHead(200, {'Content-Type': 'text/plain'});
-            res.write("Sikeres felvétel");
-            res.end();
-        });
+/* ===== POST ===== */
+app.post('/dolgozo', async (req, res) => {
+    try {
+        const value = req.body;
+        const query = "INSERT INTO dolgozok SET ?";
+        const result = await queryPromise(query, value);
+        res.status(201).json({ message: "Data successfully inserted" });
+        console.log(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Some issue occurred" });
     }
+});
 
-    if (req.url.indexOf("/dolgozo/") == 0 && req.method == "PUT") {
-
-        var id = req.url.split("/")[2];
-        var body = "";
-
-        req.on("data", function(chunk) {
-            body += chunk.toString();
-        });
-
-        req.on("end", function() {
-
-            body = body.replaceAll("+", " ");
-            var tomb = body.split("&");
-
-            var nev = tomb[0].split("=")[1];
-            var magassag = tomb[1].split("=")[1];
-            var suly = tomb[2].split("=")[1];
-
-            var sql = "UPDATE dolgozok SET nev='" + nev +
-                      "', magassag=" + magassag +
-                      ", suly=" + suly +
-                      " WHERE id=" + id;
-
-            kapcsolat.query(sql, function(err, result) {
-                if (err) throw err;
-            });
-
-            res.writeHead(200, {'Content-Type': 'text/plain'});
-            res.write("Sikeres módosítás");
-            res.end();
-        });
+/* ===== PUT ===== */
+app.put('/dolgozo/:id', async (req, res) => {
+    try {
+        const value = req.body;
+        const id = req.params.id;
+        const query = "UPDATE dolgozok SET ? WHERE id=?";
+        const result = await queryPromise(query, [value, id]);
+        res.status(200).json({ message: "Data successfully updated" });
+        console.log(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Some issue occurred" });
     }
+});
 
-    if (req.url.indexOf("/dolgozo/") == 0 && req.method == "DELETE") {
-
-        var id = req.url.split("/")[2];
-
-        var sql = "DELETE FROM dolgozok WHERE id=" + id;
-
-        kapcsolat.query(sql, function(err, result) {
-            if (err) throw err;
-        });
-
-        res.writeHead(200, {'Content-Type': 'text/plain'});
-        res.write("Sikeres törlés");
-        res.end();
+/* ===== DELETE ===== */
+app.delete('/dolgozo/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const query = "DELETE FROM dolgozok WHERE id=?";
+        const result = await queryPromise(query, id);
+        res.status(200).json({ message: "Data successfully deleted" });
+        console.log(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Some issue occurred" });
     }
+});
 
-}).listen(5000);
-
-console.log("REST szerver fut: http://localhost:5000");
+app.listen(5000, () => {
+    console.log('REST szerver fut: http://localhost:5000');
+});
